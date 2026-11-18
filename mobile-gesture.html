@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<!--
+  姓名：张曦文
+  学号：未提供
+  使用大模型：Kimi-K3.1-Pro
+  功能：任务二——中华美食卡片左右滑动切换
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f5f1e8">
+  <link rel="icon" href="assets/wy-favicon.svg" type="image/svg+xml">
+  <title>任务二｜中华美食手势卡片</title>
+  <link rel="stylesheet" href="css/wy-common.css">
+  <style>
+    .wy_deck { position: relative; padding: 12px 0 0; }
+    .wy_deck::before, .wy_deck::after { content: ""; position: absolute; z-index: 0; right: 24px; bottom: -12px; left: 24px; height: 80px; border-radius: 24px; background: #ded8ca; }
+    .wy_deck::after { right: 46px; bottom: -22px; left: 46px; background: #e9e3d8; }
+    .wy_food_card { position: relative; z-index: 2; display: grid; grid-template-columns: 1.03fr .97fr; min-height: 510px; overflow: hidden; border: 1px solid rgba(24,60,50,.1); border-radius: 28px; box-shadow: 0 24px 60px rgba(38,48,39,.13); background: #f4dfcb; touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; cursor: grab; transition: transform .3s ease, opacity .3s ease; }
+    .wy_food_card:active { cursor: grabbing; }
+    .wy_food_photo { position: relative; min-height: 360px; overflow: hidden; }
+    .wy_food_photo img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+    .wy_food_photo::after { content: ""; position: absolute; inset: 60% 0 0; background: linear-gradient(transparent,rgba(20,30,24,.36)); }
+    .wy_food_location { position: absolute; z-index: 2; top: 22px; left: 22px; padding: 7px 11px; border: 1px solid rgba(255,255,255,.5); border-radius: 99px; background: rgba(20,35,28,.4); backdrop-filter: blur(10px); color: #fff; font-size: 11px; letter-spacing: .08em; }
+    .wy_food_swipe { position: absolute; z-index: 2; right: 20px; bottom: 18px; color: #fff; font-size: 11px; }
+    .wy_food_body { display: flex; flex-direction: column; justify-content: center; padding: 45px 42px; color: var(--wy_ink); }
+    .wy_food_category { margin: 0 0 18px; color: #915e43; font-size: 11px; font-weight: 800; letter-spacing: .15em; }
+    .wy_food_name { margin: 0; font-family: "Songti SC", "STSong", "SimSun", serif; font-size: clamp(40px,5vw,58px); line-height: 1.15; letter-spacing: -.04em; }
+    .wy_food_en { margin: 8px 0 22px; color: #876e5b; font: italic 15px Georgia, serif; }
+    .wy_food_desc { margin: 0; color: #5f665d; font-size: 14px; line-height: 1.9; }
+    .wy_food_facts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 28px; padding-top: 20px; border-top: 1px solid rgba(24,60,50,.15); }
+    .wy_food_fact small { display: block; margin-bottom: 4px; color: #7c8076; font-size: 10px; }
+    .wy_food_fact strong { font-size: 13px; font-weight: 700; }
+    .wy_food_index { align-self: flex-end; margin-top: 25px; color: #8e7764; font: 12px Georgia, serif; }
+    .wy_theme_duck { background: linear-gradient(145deg,#f6e8d8,#eed0b5); }
+    .wy_theme_tofu { background: linear-gradient(145deg,#e5eee2,#c8ddce); }
+    .wy_theme_fish { background: linear-gradient(145deg,#f4ded3,#e9b7a5); }
+    .wy_theme_noodles { background: linear-gradient(145deg,#e2e9ec,#c6d8df); }
+    .wy_theme_tofu .wy_food_category, .wy_theme_tofu .wy_food_en, .wy_theme_tofu .wy_food_index { color: #507361; }
+    .wy_theme_fish .wy_food_category, .wy_theme_fish .wy_food_en, .wy_theme_fish .wy_food_index { color: #9b5547; }
+    .wy_theme_noodles .wy_food_category, .wy_theme_noodles .wy_food_en, .wy_theme_noodles .wy_food_index { color: #526f7c; }
+    .wy_enter_next { transform: translateX(38px); opacity: .15; transition: none; }
+    .wy_enter_prev { transform: translateX(-38px); opacity: .15; transition: none; }
+    .wy_deck_controls { position: relative; z-index: 3; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 20px; margin-top: 45px; }
+    .wy_arrow { display: grid; place-items: center; width: 52px; height: 52px; border: 1px solid var(--wy_line); border-radius: 50%; background: var(--wy_card); color: var(--wy_ink); cursor: pointer; font-size: 22px; transition: background .2s, transform .2s; }
+    .wy_arrow:active { transform: scale(.92); }
+    .wy_arrow:disabled { opacity: .4; cursor: wait; }
+    .wy_arrow_next { justify-self: end; }
+    .wy_dots { display: flex; gap: 8px; }
+    .wy_dot { width: 8px; height: 8px; padding: 0; border: 0; border-radius: 99px; background: #c3c5ba; cursor: pointer; transition: width .3s, background .3s; }
+    .wy_dot[aria-current="true"] { width: 28px; background: var(--wy_coral); }
+    .wy_counter { text-align: center; }
+    .wy_counter strong { display: block; color: var(--wy_ink); font: 26px Georgia, serif; }
+    .wy_counter strong > span { color: inherit; font-size: inherit; }
+    .wy_specs { display: grid; grid-template-columns: repeat(3,1fr); gap: 15px; margin-top: 28px; }
+    .wy_spec { padding: 20px; border: 1px solid var(--wy_line); border-radius: 17px; background: rgba(255,253,248,.55); }
+    .wy_spec strong { display: block; color: var(--wy_ink); font: 24px Georgia, serif; }
+    .wy_spec span { color: var(--wy_muted); font-size: 12px; }
+    .wy_explain { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 28px; }
+    @media (hover:hover) { .wy_arrow:hover { background: #e6ece4; transform: translateY(-2px); } }
+    @media (max-width: 760px) {
+      .wy_food_card { grid-template-columns: 1fr; min-height: 0; }
+      .wy_food_photo { height: 330px; min-height: 0; }
+      .wy_food_body { padding: 30px 26px 27px; }
+      .wy_food_name { font-size: 44px; }
+      .wy_food_category { margin-bottom: 12px; }
+      .wy_food_en { margin-bottom: 15px; }
+      .wy_food_facts { margin-top: 20px; padding-top: 16px; }
+      .wy_food_index { display: none; }
+      .wy_deck_controls { margin-top: 42px; }
+      .wy_explain { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 420px) { .wy_food_photo { height: 280px; } .wy_specs { gap: 8px; } .wy_spec { padding: 15px 12px; } .wy_spec strong { font-size: 20px; } .wy_spec span { font-size: 10px; } }
+  </style>
+</head>
+<body>
+  <header class="wy_header"><nav class="wy_shell wy_nav" aria-label="页面导航"><a class="wy_brand" href="index.html"><span class="wy_brand_mark">W</span>指尖实验室</a><a class="wy_back" href="index.html#wy_tasks">返回四关任务</a></nav></header>
+  <main class="wy_main"><div class="wy_shell">
+    <div class="wy_task_head"><div><p class="wy_eyebrow">Task 02 · Gesture Recognition</p><h1 class="wy_title">滑动之间，<br>品味中华。</h1><p class="wy_lead">在卡片上左右滑动，或用鼠标拖动、点击两侧箭头。短距离与纵向滑动不会切换，连续快滑也有 300ms 冷却保护。</p></div><div class="wy_level"><span>★★</span> 手势识别 · DOM 操作</div></div>
+
+    <section class="wy_deck" aria-label="中华美食卡片轮播">
+      <article class="wy_food_card wy_theme_duck" id="wy_food_card" aria-live="polite">
+        <div class="wy_food_photo"><img id="wy_food_image" src="assets/wy-duck-photo.jpg" alt="色泽枣红的北京烤鸭" width="1536" height="1024" draggable="false"><span class="wy_food_location" id="wy_food_location">北京 · 挂炉技艺</span><span class="wy_food_swipe">← 左右滑动探索 →</span></div>
+        <div class="wy_food_body"><p class="wy_food_category" id="wy_food_category">酥脆 · 醇香 · 经典名菜</p><h2 class="wy_food_name" id="wy_food_name">北京烤鸭</h2><p class="wy_food_en" id="wy_food_en">Peking Roast Duck</p><p class="wy_food_desc" id="wy_food_desc">枣红鸭皮酥而不腻，鸭肉细嫩多汁。薄片卷进荷叶饼，配上甜面酱、葱丝与黄瓜，一口尝尽北方的丰盛与讲究。</p><div class="wy_food_facts"><div class="wy_food_fact"><small>风味关键词</small><strong id="wy_food_flavor">酥香 / 咸甜</strong></div><div class="wy_food_fact"><small>推荐搭配</small><strong id="wy_food_pair">荷叶饼与甜面酱</strong></div></div><span class="wy_food_index" id="wy_food_index">CHAPTER 01 · TASTE OF CHINA</span></div>
+      </article>
+    </section>
+    <div class="wy_deck_controls">
+      <button class="wy_arrow" id="wy_prev" type="button" aria-label="上一道美食">←</button>
+      <div class="wy_counter"><strong><span id="wy_current">1</span> / 4</strong><div class="wy_dots" aria-label="选择美食"><button class="wy_dot" type="button" data-wy-index="0" aria-current="true" aria-label="第1张：北京烤鸭"></button><button class="wy_dot" type="button" data-wy-index="1" aria-current="false" aria-label="第2张：麻婆豆腐"></button><button class="wy_dot" type="button" data-wy-index="2" aria-current="false" aria-label="第3张：西湖醋鱼"></button><button class="wy_dot" type="button" data-wy-index="3" aria-current="false" aria-label="第4张：兰州牛肉面"></button></div></div>
+      <button class="wy_arrow wy_arrow_next" id="wy_next" type="button" aria-label="下一道美食">→</button>
+    </div>
+    <p class="wy_status" id="wy_gesture_status" role="status">第 1/4 张 · 向左滑动，试试下一道。</p>
+
+    <div class="wy_specs" aria-label="手势参数"><div class="wy_spec"><strong>40px</strong><span>横向位移阈值，过滤短距离误触</span></div><div class="wy_spec"><strong>300ms</strong><span>切换冷却，防止一次快滑连跳</span></div><div class="wy_spec"><strong>pan-y</strong><span>只接管横滑，页面纵向正常滚动</span></div></div>
+
+    <section class="wy_explain">
+      <article class="wy_card wy_panel"><h2 class="wy_section_title">方向如何判断</h2><div class="wy_text"><p>touchstart 记录起点，touchend 读取 <span class="wy_code">changedTouches[0]</span> 的终点。横向位移大于 40px，且大于纵向位移时才翻页：负值左滑到下一张，正值右滑回上一张。</p><p>设置阈值能过滤指尖抖动；比较横纵位移可避免用户想上下滚页面时误切卡片。</p></div></article>
+      <article class="wy_card wy_panel"><h2 class="wy_section_title">为什么不会连跳</h2><div class="wy_text"><p>每次有效切换后立即锁定 300ms，冷却期间忽略新的手势与按钮操作。第一张继续右滑、最后一张继续左滑时，分别提示“已经是第一张 / 最后一张”。</p><p><strong>触摸被取消：</strong>touchcancel 会清空起点与状态，避免系统中断后下一次滑动使用旧坐标。</p></div></article>
+    </section>
+  </div></main>
+  <footer class="wy_footer"><div class="wy_shell wy_footer_inner"><a class="wy_back" href="mobile-events.html">← 上一关：事件侦探</a><a class="wy_back" href="mobile-zoom.html">下一关：图片查看器 →</a></div></footer>
+
+  <script>
+    var wy_foods = [
+      { name: '北京烤鸭', en: 'Peking Roast Duck', location: '北京 · 挂炉技艺', category: '酥脆 · 醇香 · 经典名菜', desc: '枣红鸭皮酥而不腻，鸭肉细嫩多汁。薄片卷进荷叶饼，配上甜面酱、葱丝与黄瓜，一口尝尽北方的丰盛与讲究。', flavor: '酥香 / 咸甜', pair: '荷叶饼与甜面酱', image: 'assets/wy-duck-photo.jpg', alt: '色泽枣红的北京烤鸭', theme: 'duck' },
+      { name: '麻婆豆腐', en: 'Mapo Tofu', location: '四川 · 川菜经典', category: '麻辣 · 鲜嫩 · 下饭一绝', desc: '白嫩豆腐裹着红亮酱汁，花椒的麻与辣椒的香层层展开。牛肉末添一份醇厚，趁热拌饭，是川味最直接的快乐。', flavor: '麻辣 / 鲜香', pair: '米饭与青蒜', image: 'assets/wy-tofu-photo.jpg', alt: '红亮酱汁包裹的麻婆豆腐', theme: 'tofu' },
+      { name: '西湖醋鱼', en: 'West Lake Vinegar Fish', location: '杭州 · 江南风味', category: '酸甜 · 细嫩 · 杭帮名菜', desc: '鲜活鱼肉以清水汆熟，浇上糖醋芡汁。鱼肉细嫩，酸甜里带着姜香，如西湖水色一般清鲜含蓄，层次分明。', flavor: '酸甜 / 鲜嫩', pair: '姜末与糖醋芡汁', image: 'assets/wy-fish-photo.jpg', alt: '浇有糖醋汁的西湖醋鱼', theme: 'fish' },
+      { name: '兰州牛肉面', en: 'Lanzhou Beef Noodles', location: '兰州 · 一清二白', category: '汤清 · 面筋 · 西北烟火', desc: '一清汤、二白萝卜、三红辣油、四绿香菜、五黄面条。手工拉面筋道爽滑，牛肉汤清而味厚，一碗装下西北的清晨。', flavor: '清鲜 / 香辣', pair: '牛肉与油泼辣子', image: 'assets/wy-noodles-photo.jpg', alt: '配有牛肉与辣油的兰州牛肉面', theme: 'noodles' }
+    ];
+    var wy_card = document.getElementById('wy_food_card');
+    var wy_index = 0;
+    var wy_cooling = false;
+    var wy_touch_x = 0;
+    var wy_touch_y = 0;
+    var wy_touching = false;
+    var wy_mouse_down = false;
+    var wy_mouse_x = 0;
+    var wy_mouse_y = 0;
+    var wy_ignore_mouse_until = 0;
+    var wy_status = document.getElementById('wy_gesture_status');
+
+    function wy_message(wy_text, wy_tone) {
+      wy_status.textContent = wy_text;
+      wy_status.setAttribute('data-wy-tone', wy_tone || '');
+    }
+
+    function wy_render(wy_direction) {
+      var wy_food = wy_foods[wy_index];
+      wy_card.className = 'wy_food_card wy_theme_' + wy_food.theme + (wy_direction > 0 ? ' wy_enter_next' : ' wy_enter_prev');
+      document.getElementById('wy_food_image').src = wy_food.image;
+      document.getElementById('wy_food_image').alt = wy_food.alt;
+      document.getElementById('wy_food_location').textContent = wy_food.location;
+      document.getElementById('wy_food_category').textContent = wy_food.category;
+      document.getElementById('wy_food_name').textContent = wy_food.name;
+      document.getElementById('wy_food_en').textContent = wy_food.en;
+      document.getElementById('wy_food_desc').textContent = wy_food.desc;
+      document.getElementById('wy_food_flavor').textContent = wy_food.flavor;
+      document.getElementById('wy_food_pair').textContent = wy_food.pair;
+      document.getElementById('wy_food_index').textContent = 'CHAPTER 0' + (wy_index + 1) + ' · TASTE OF CHINA';
+      document.getElementById('wy_current').textContent = wy_index + 1;
+      document.querySelectorAll('.wy_dot').forEach(function (wy_dot, wy_dot_index) { wy_dot.setAttribute('aria-current', String(wy_dot_index === wy_index)); });
+      // 强制读取布局，让起始位移先生效，再进入 0.3s CSS 过渡。
+      void wy_card.offsetWidth;
+      wy_card.classList.remove('wy_enter_next', 'wy_enter_prev');
+    }
+
+    function wy_go(wy_target, wy_direction) {
+      if (wy_cooling) {
+        wy_message('切换冷却中，请稍等 300ms，避免一次跳两张。', 'warn');
+        return;
+      }
+      if (wy_target < 0) {
+        wy_message('已经是第一张，向左滑动可以继续探索。', 'warn');
+        return;
+      }
+      if (wy_target >= wy_foods.length) {
+        wy_message('已经是最后一张，向右滑动可以返回上一道。', 'warn');
+        return;
+      }
+      if (wy_target === wy_index) return;
+      wy_cooling = true;
+      document.getElementById('wy_prev').disabled = true;
+      document.getElementById('wy_next').disabled = true;
+      wy_index = wy_target;
+      wy_render(wy_direction);
+      wy_message('已切换到第 ' + (wy_index + 1) + '/4 张：' + wy_foods[wy_index].name, 'success');
+      setTimeout(function () {
+        wy_cooling = false;
+        document.getElementById('wy_prev').disabled = false;
+        document.getElementById('wy_next').disabled = false;
+      }, 300);
+    }
+
+    function wy_gesture_end(wy_end_x, wy_end_y, wy_start_x, wy_start_y) {
+      var wy_dx = wy_end_x - wy_start_x;
+      var wy_dy = wy_end_y - wy_start_y;
+      if (Math.abs(wy_dx) < 40 || Math.abs(wy_dx) <= Math.abs(wy_dy)) {
+        wy_message('未达到横向 40px 阈值，本次不切换。', '');
+        return;
+      }
+      wy_go(wy_index + (wy_dx < 0 ? 1 : -1), wy_dx < 0 ? 1 : -1);
+    }
+
+    wy_card.addEventListener('touchstart', function (wy_event) {
+      wy_ignore_mouse_until = Date.now() + 900;
+      if (wy_event.touches.length !== 1) { wy_touching = false; return; }
+      var wy_touch = wy_event.touches[0];
+      wy_touch_x = wy_touch.clientX;
+      wy_touch_y = wy_touch.clientY;
+      wy_touching = true;
+    }, { passive: true });
+
+    wy_card.addEventListener('touchend', function (wy_event) {
+      if (!wy_touching) return;
+      var wy_touch = wy_event.changedTouches[0];
+      wy_touching = false;
+      if (!wy_touch) return;
+      wy_gesture_end(wy_touch.clientX, wy_touch.clientY, wy_touch_x, wy_touch_y);
+    }, { passive: true });
+
+    wy_card.addEventListener('touchcancel', function () {
+      wy_touching = false;
+      wy_touch_x = wy_touch_y = 0;
+    }, { passive: true });
+
+    // 桌面鼠标拖动与触摸共用同一套方向和阈值判断。
+    wy_card.addEventListener('mousedown', function (wy_event) {
+      if (Date.now() < wy_ignore_mouse_until) return;
+      wy_mouse_down = true;
+      wy_mouse_x = wy_event.clientX;
+      wy_mouse_y = wy_event.clientY;
+    });
+    window.addEventListener('mouseup', function (wy_event) {
+      if (!wy_mouse_down) return;
+      wy_mouse_down = false;
+      wy_gesture_end(wy_event.clientX, wy_event.clientY, wy_mouse_x, wy_mouse_y);
+    });
+    document.getElementById('wy_prev').addEventListener('click', function () { wy_go(wy_index - 1, -1); });
+    document.getElementById('wy_next').addEventListener('click', function () { wy_go(wy_index + 1, 1); });
+    document.querySelectorAll('.wy_dot').forEach(function (wy_dot) {
+      wy_dot.addEventListener('click', function () {
+        var wy_target = Number(wy_dot.getAttribute('data-wy-index'));
+        wy_go(wy_target, wy_target > wy_index ? 1 : -1);
+      });
+    });
+    document.addEventListener('keydown', function (wy_event) {
+      if (wy_event.key === 'ArrowLeft') wy_go(wy_index - 1, -1);
+      if (wy_event.key === 'ArrowRight') wy_go(wy_index + 1, 1);
+    });
+
+    // 提前缓存其余本地图片，首次滑动也能立即显示。
+    wy_foods.forEach(function (wy_food) { var wy_preload = new Image(); wy_preload.src = wy_food.image; });
+  </script>
+</body>
+</html>

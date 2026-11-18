@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<!--
+  姓名：张曦文
+  学号：未提供
+  使用大模型：Kimi-K3.1-Pro
+  功能：任务三——双指中点缩放、双击放大、单指拖动与边界限制
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f5f1e8">
+  <link rel="icon" href="assets/wy-favicon.svg" type="image/svg+xml">
+  <title>任务三｜西湖双指图片查看器</title>
+  <link rel="stylesheet" href="css/wy-common.css">
+  <style>
+    .wy_viewer_card { overflow: hidden; background: #132d26; }
+    .wy_viewer_bar { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 17px 21px; color: #fff; }
+    .wy_viewer_title { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; }
+    .wy_viewer_title::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--wy_coral); }
+    .wy_viewer_bar small { color: #9eb5aa; font-size: 11px; }
+    .wy_stage { position: relative; height: min(62vh,590px); min-height: 420px; overflow: hidden; background: #0d211b; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; cursor: grab; }
+    .wy_stage.wy_dragging { cursor: grabbing; }
+    .wy_zoom_image { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; object-fit: cover; transform-origin: 0 0; will-change: transform; pointer-events: none; }
+    .wy_zoom_image.wy_animated { transition: transform .25s ease; }
+    .wy_stage_shade { position: absolute; inset: 0; background: linear-gradient(rgba(8,25,19,.34),transparent 24%,transparent 72%,rgba(8,25,19,.48)); pointer-events: none; }
+    .wy_stage_tip { position: absolute; top: 18px; left: 50%; max-width: calc(100% - 32px); padding: 8px 13px; border: 1px solid rgba(255,255,255,.26); border-radius: 99px; background: rgba(13,33,27,.52); backdrop-filter: blur(10px); color: #fff; font-size: 11px; text-align: center; white-space: nowrap; transform: translateX(-50%); pointer-events: none; }
+    .wy_scale_badge { position: absolute; right: 18px; bottom: 18px; min-width: 74px; padding: 9px 12px; border-radius: 12px; background: rgba(13,33,27,.7); backdrop-filter: blur(10px); color: #fff; font: 19px Georgia,serif; text-align: center; pointer-events: none; }
+    .wy_scale_badge small { display: block; margin-top: 2px; color: #bad0c5; font: 8px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; letter-spacing: .16em; }
+    .wy_photo_caption { position: absolute; bottom: 20px; left: 21px; color: #fff; pointer-events: none; }
+    .wy_photo_caption strong { display: block; font-family: "Songti SC",serif; font-size: 21px; font-weight: 500; }
+    .wy_photo_caption span { color: #c5d5cd; font-size: 10px; letter-spacing: .1em; }
+    .wy_toolbar { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 17px 20px; border-top: 1px solid rgba(255,255,255,.1); }
+    .wy_toolbar_group { display: flex; gap: 8px; }
+    .wy_tool_button { display: grid; place-items: center; min-width: 43px; height: 43px; padding: 0 13px; border: 1px solid rgba(255,255,255,.19); border-radius: 99px; background: transparent; color: #fff; cursor: pointer; font-size: 19px; }
+    .wy_tool_button:active { background: rgba(255,255,255,.12); transform: scale(.95); }
+    .wy_tool_button:disabled { opacity: .3; cursor: not-allowed; }
+    .wy_reset_button { width: auto; font-size: 12px; font-weight: 700; }
+    .wy_toolbar_status { color: #a8beb3; font-size: 11px; text-align: right; }
+    .wy_feature_row { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-top: 20px; }
+    .wy_feature { padding: 18px 14px; border: 1px solid var(--wy_line); border-radius: 16px; color: var(--wy_muted); font-size: 12px; text-align: center; }
+    .wy_feature strong { display: block; margin-bottom: 3px; color: var(--wy_ink); font-size: 14px; }
+    .wy_formula { overflow-x: auto; margin: 16px 0; padding: 18px; border-radius: 13px; background: #183c32; color: #d9e5de; font: 13px/1.8 Consolas,monospace; white-space: pre; }
+    .wy_answer_grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 24px; margin-top: 28px; }
+    @media (hover:hover) { .wy_tool_button:hover { background: rgba(255,255,255,.1); } }
+    @media (max-width: 760px) {
+      .wy_stage { height: 57vh; min-height: 390px; }
+      .wy_feature_row { grid-template-columns: repeat(2,1fr); }
+      .wy_answer_grid { grid-template-columns: 1fr; }
+      .wy_toolbar { padding: 15px; }
+      .wy_toolbar_status { max-width: 160px; }
+      .wy_photo_caption strong { font-size: 18px; }
+    }
+    @media (max-width: 420px) {
+      .wy_stage { height: 53vh; min-height: 360px; }
+      .wy_viewer_bar { padding: 15px; }
+      .wy_viewer_bar small { display: none; }
+      .wy_stage_tip { top: 13px; font-size: 10px; }
+      .wy_photo_caption { bottom: 17px; left: 16px; }
+      .wy_scale_badge { right: 14px; bottom: 14px; }
+      .wy_toolbar { gap: 10px; }
+      .wy_toolbar_group { gap: 6px; }
+      .wy_tool_button { min-width: 40px; height: 40px; }
+      .wy_toolbar_status { max-width: 125px; font-size: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="wy_header"><nav class="wy_shell wy_nav" aria-label="页面导航"><a class="wy_brand" href="index.html"><span class="wy_brand_mark">W</span>指尖实验室</a><a class="wy_back" href="index.html#wy_tasks">返回四关任务</a></nav></header>
+  <main class="wy_main"><div class="wy_shell">
+    <div class="wy_task_head"><div><p class="wy_eyebrow">Task 03 · Multi-touch & Transform</p><h1 class="wy_title">把西湖的美，<br>放大来看。</h1><p class="wy_lead">手机上用双指捏合缩放，放大后单指拖动，快速点两下切换 1x / 2x。电脑端可使用滚轮、双击、拖动和下方按钮。</p></div><div class="wy_level"><span>★★★</span> 多指手势 · 状态管理</div></div>
+
+    <div class="wy_note" style="margin-bottom:20px"><strong>双指缩放请用手机打开。</strong> 查看器区域已设置 touch-action:none，页面其余部分仍可正常滚动；缩放范围 1x～4x。</div>
+    <section class="wy_card wy_viewer_card" aria-label="可交互西湖图片查看器">
+      <div class="wy_viewer_bar"><span class="wy_viewer_title">杭州 · 西湖印象</span><small>PINCH / DOUBLE TAP / DRAG</small></div>
+      <div class="wy_stage" id="wy_stage" role="application" aria-label="西湖图片，双指缩放，双击放大，放大后单指拖动">
+        <img class="wy_zoom_image" id="wy_zoom_image" src="assets/wy-westlake-photo.jpg" alt="杭州西湖、群山与湖畔风景大图" width="1536" height="1024" draggable="false">
+        <div class="wy_stage_shade"></div>
+        <div class="wy_stage_tip">双指捏合 · 双击切换 · 放大后拖动</div>
+        <div class="wy_photo_caption"><strong>一湖山水，半城诗</strong><span>WEST LAKE / HANGZHOU</span></div>
+        <div class="wy_scale_badge"><span id="wy_scale_text">1.00×</span><small>SCALE</small></div>
+      </div>
+      <div class="wy_toolbar">
+        <div class="wy_toolbar_group"><button class="wy_tool_button" id="wy_zoom_out" type="button" aria-label="缩小" disabled>−</button><button class="wy_tool_button" id="wy_zoom_in" type="button" aria-label="放大">＋</button><button class="wy_tool_button wy_reset_button" id="wy_reset" type="button">复位 1x</button></div>
+        <span class="wy_toolbar_status" id="wy_viewer_status" role="status">1x 已居中 · 等待手势</span>
+      </div>
+    </section>
+    <div class="wy_feature_row"><div class="wy_feature"><strong>1x—4x</strong>倍率限制</div><div class="wy_feature"><strong>中点锚定</strong>缩放不跳图</div><div class="wy_feature"><strong>边界约束</strong>不会拖出空白</div><div class="wy_feature"><strong>旋转保留</strong>横竖屏不重置</div></div>
+
+    <section class="wy_answer_grid">
+      <article class="wy_card wy_panel"><h2 class="wy_section_title">如何保证“缩放不跳”？</h2><div class="wy_text"><p>双指开始时，不只记录初始距离，还记录两指中点正下方的图片坐标 <span class="wy_code">p</span>。移动时每帧用新的中点和倍率反推位移，让同一个图片点始终留在中点下：</p></div><pre class="wy_formula">p = (m - t) / s       // 开始：中点下的图片坐标
+s' = clamp(s₀ × d / d₀, 1, 4)
+t' = m' - p × s'      // 每帧：反推新位移</pre><div class="wy_text"><p>其中 m 是容器内中点，t 是位移，s 是倍率。第二根手指按下、松开其中一指和 touchcancel 时都会重置基准，避免沿用上轮残留数据。</p></div></article>
+      <article class="wy_card wy_panel"><h2 class="wy_section_title">边界与旋转</h2><ul class="wy_list"><li>位移限制在 0 与容器尺寸 × (1−scale) 之间，图片始终覆盖查看区。</li><li>scale 回到 1x 时 translate 强制归零，图片自动居中且不能拖动。</li><li>双击通过 0.25s CSS transition 平滑切换，不叠加原生页面双击缩放。</li><li>resize 时记录画面中心的归一化图片坐标，按新容器尺寸恢复并再次限制边界。</li></ul></article>
+    </section>
+  </div></main>
+  <footer class="wy_footer"><div class="wy_shell wy_footer_inner"><a class="wy_back" href="mobile-gesture.html">← 上一关：手势卡片</a><a class="wy_back" href="mobile-sensor.html">下一关：摇一摇 →</a></div></footer>
+
+  <script>
+    var wy_stage = document.getElementById('wy_stage');
+    var wy_image = document.getElementById('wy_zoom_image');
+    var wy_scale_text = document.getElementById('wy_scale_text');
+    var wy_viewer_status = document.getElementById('wy_viewer_status');
+    var wy_scale = 1;
+    var wy_tx = 0;
+    var wy_ty = 0;
+    var wy_mode = 'none';
+    var wy_start_distance = 0;
+    var wy_start_scale = 1;
+    var wy_pinch_x = 0;
+    var wy_pinch_y = 0;
+    var wy_pan_start_x = 0;
+    var wy_pan_start_y = 0;
+    var wy_pan_origin_x = 0;
+    var wy_pan_origin_y = 0;
+    var wy_touch_start_x = 0;
+    var wy_touch_start_y = 0;
+    var wy_touch_start_time = 0;
+    var wy_moved = false;
+    var wy_last_tap = 0;
+    var wy_mouse_down = false;
+    var wy_ignore_mouse_until = 0;
+    var wy_stage_width = 0;
+    var wy_stage_height = 0;
+    var wy_resize_timer = null;
+
+    function wy_clamp(wy_value, wy_min, wy_max) { return Math.min(wy_max, Math.max(wy_min, wy_value)); }
+    function wy_distance(wy_a, wy_b) { return Math.hypot(wy_b.clientX - wy_a.clientX, wy_b.clientY - wy_a.clientY); }
+    function wy_midpoint(wy_a, wy_b) {
+      var wy_rect = wy_stage.getBoundingClientRect();
+      return { x: (wy_a.clientX + wy_b.clientX) / 2 - wy_rect.left, y: (wy_a.clientY + wy_b.clientY) / 2 - wy_rect.top };
+    }
+    function wy_local_point(wy_client_x, wy_client_y) {
+      var wy_rect = wy_stage.getBoundingClientRect();
+      return { x: wy_client_x - wy_rect.left, y: wy_client_y - wy_rect.top };
+    }
+    function wy_limit() {
+      var wy_rect = wy_stage.getBoundingClientRect();
+      if (wy_scale === 1) { wy_tx = 0; wy_ty = 0; return; }
+      wy_tx = wy_clamp(wy_tx, wy_rect.width * (1 - wy_scale), 0);
+      wy_ty = wy_clamp(wy_ty, wy_rect.height * (1 - wy_scale), 0);
+    }
+    function wy_apply(wy_animate) {
+      wy_limit();
+      wy_image.classList.toggle('wy_animated', Boolean(wy_animate));
+      wy_image.style.transform = 'translate3d(' + wy_tx + 'px,' + wy_ty + 'px,0) scale(' + wy_scale + ')';
+      wy_scale_text.textContent = wy_scale.toFixed(2) + '×';
+      document.getElementById('wy_zoom_out').disabled = wy_scale <= 1;
+      document.getElementById('wy_zoom_in').disabled = wy_scale >= 4;
+    }
+    function wy_status(wy_text) { wy_viewer_status.textContent = wy_text; }
+
+    // 通用锚点缩放：先保存缩放点下的图片坐标，再按新倍率恢复它的位置。
+    function wy_zoom_at(wy_new_scale, wy_client_x, wy_client_y, wy_animate) {
+      var wy_p = wy_local_point(wy_client_x, wy_client_y);
+      var wy_image_x = (wy_p.x - wy_tx) / wy_scale;
+      var wy_image_y = (wy_p.y - wy_ty) / wy_scale;
+      wy_scale = wy_clamp(wy_new_scale, 1, 4);
+      wy_tx = wy_p.x - wy_image_x * wy_scale;
+      wy_ty = wy_p.y - wy_image_y * wy_scale;
+      wy_apply(wy_animate);
+      wy_status(wy_scale === 1 ? '1x 已居中 · 等待手势' : '当前 ' + wy_scale.toFixed(2) + 'x · 可拖动查看');
+    }
+
+    function wy_start_pan(wy_touch) {
+      wy_mode = 'pan';
+      wy_pan_start_x = wy_touch.clientX;
+      wy_pan_start_y = wy_touch.clientY;
+      wy_pan_origin_x = wy_tx;
+      wy_pan_origin_y = wy_ty;
+    }
+
+    function wy_start_pinch(wy_touches) {
+      var wy_mid = wy_midpoint(wy_touches[0], wy_touches[1]);
+      wy_mode = 'pinch';
+      wy_start_distance = Math.max(1, wy_distance(wy_touches[0], wy_touches[1]));
+      wy_start_scale = wy_scale;
+      wy_pinch_x = (wy_mid.x - wy_tx) / wy_scale;
+      wy_pinch_y = (wy_mid.y - wy_ty) / wy_scale;
+      wy_moved = true;
+      wy_last_tap = 0;
+      wy_image.classList.remove('wy_animated');
+    }
+
+    wy_stage.addEventListener('touchstart', function (wy_event) {
+      wy_ignore_mouse_until = Date.now() + 900;
+      wy_image.classList.remove('wy_animated');
+      if (wy_event.touches.length >= 2) {
+        wy_event.preventDefault();
+        wy_start_pinch(wy_event.touches);
+        wy_status('双指缩放中 · 以两指中点为基准');
+        return;
+      }
+      var wy_touch = wy_event.touches[0];
+      wy_touch_start_x = wy_touch.clientX;
+      wy_touch_start_y = wy_touch.clientY;
+      wy_touch_start_time = Date.now();
+      wy_moved = false;
+      if (wy_scale > 1) wy_start_pan(wy_touch);
+      else wy_mode = 'tap';
+    }, { passive: false });
+
+    wy_stage.addEventListener('touchmove', function (wy_event) {
+      wy_event.preventDefault();
+      if (wy_mode === 'pinch' && wy_event.touches.length >= 2) {
+        var wy_current_distance = Math.max(1, wy_distance(wy_event.touches[0], wy_event.touches[1]));
+        var wy_mid = wy_midpoint(wy_event.touches[0], wy_event.touches[1]);
+        wy_scale = wy_clamp(wy_start_scale * wy_current_distance / wy_start_distance, 1, 4);
+        wy_tx = wy_mid.x - wy_pinch_x * wy_scale;
+        wy_ty = wy_mid.y - wy_pinch_y * wy_scale;
+        wy_apply(false);
+        wy_status('双指缩放中 · ' + wy_scale.toFixed(2) + 'x');
+        return;
+      }
+      if ((wy_mode === 'pan' || wy_mode === 'tap') && wy_event.touches.length === 1) {
+        var wy_touch = wy_event.touches[0];
+        var wy_total_dx = wy_touch.clientX - wy_touch_start_x;
+        var wy_total_dy = wy_touch.clientY - wy_touch_start_y;
+        if (Math.hypot(wy_total_dx, wy_total_dy) > 7) wy_moved = true;
+        if (wy_scale > 1) {
+          wy_tx = wy_pan_origin_x + wy_touch.clientX - wy_pan_start_x;
+          wy_ty = wy_pan_origin_y + wy_touch.clientY - wy_pan_start_y;
+          wy_apply(false);
+          wy_status('单指拖动 · 已限制图片边界');
+        }
+      }
+    }, { passive: false });
+
+    wy_stage.addEventListener('touchend', function (wy_event) {
+      if (wy_mode === 'pinch') {
+        if (wy_event.touches.length === 1) {
+          // 双指变单指时重新记录起点，不能把整段双指位移算进拖动。
+          wy_start_pan(wy_event.touches[0]);
+          wy_touch_start_x = wy_event.touches[0].clientX;
+          wy_touch_start_y = wy_event.touches[0].clientY;
+          wy_moved = true;
+        } else if (wy_event.touches.length === 0) {
+          wy_mode = 'none';
+          wy_apply(false);
+          wy_status(wy_scale === 1 ? '1x 已居中 · 等待手势' : '缩放完成 · 可单指拖动');
+        }
+        return;
+      }
+      if (wy_event.touches.length > 0) return;
+      var wy_touch = wy_event.changedTouches[0];
+      if (wy_touch && !wy_moved && Date.now() - wy_touch_start_time < 350) {
+        var wy_now = Date.now();
+        if (wy_now - wy_last_tap < 300) {
+          wy_last_tap = 0;
+          wy_zoom_at(wy_scale > 1 ? 1 : 2, wy_touch.clientX, wy_touch.clientY, true);
+          wy_status(wy_scale === 1 ? '双击复位 · 1x 已居中' : '双击放大 · 2x 可继续拖动');
+        } else wy_last_tap = wy_now;
+      }
+      wy_mode = 'none';
+    }, { passive: true });
+
+    wy_stage.addEventListener('touchcancel', function () {
+      wy_mode = 'none';
+      wy_mouse_down = false;
+      wy_last_tap = 0;
+      wy_stage.classList.remove('wy_dragging');
+      wy_apply(false);
+      wy_status('触摸被系统中断 · 状态已安全清理');
+    }, { passive: true });
+
+    // 桌面滚轮以鼠标位置为缩放锚点。
+    wy_stage.addEventListener('wheel', function (wy_event) {
+      wy_event.preventDefault();
+      wy_zoom_at(wy_scale * Math.exp(-wy_event.deltaY * .0015), wy_event.clientX, wy_event.clientY, false);
+    }, { passive: false });
+
+    wy_stage.addEventListener('dblclick', function (wy_event) {
+      if (Date.now() < wy_ignore_mouse_until) return;
+      wy_zoom_at(wy_scale > 1 ? 1 : 2, wy_event.clientX, wy_event.clientY, true);
+    });
+    wy_stage.addEventListener('mousedown', function (wy_event) {
+      if (Date.now() < wy_ignore_mouse_until || wy_event.button !== 0 || wy_scale <= 1) return;
+      wy_mouse_down = true;
+      wy_stage.classList.add('wy_dragging');
+      wy_pan_start_x = wy_event.clientX;
+      wy_pan_start_y = wy_event.clientY;
+      wy_pan_origin_x = wy_tx;
+      wy_pan_origin_y = wy_ty;
+      wy_image.classList.remove('wy_animated');
+      wy_event.preventDefault();
+    });
+    window.addEventListener('mousemove', function (wy_event) {
+      if (!wy_mouse_down) return;
+      wy_tx = wy_pan_origin_x + wy_event.clientX - wy_pan_start_x;
+      wy_ty = wy_pan_origin_y + wy_event.clientY - wy_pan_start_y;
+      wy_apply(false);
+      wy_status('鼠标拖动 · 已限制图片边界');
+    });
+    window.addEventListener('mouseup', function () {
+      if (!wy_mouse_down) return;
+      wy_mouse_down = false;
+      wy_stage.classList.remove('wy_dragging');
+      wy_apply(false);
+    });
+
+    function wy_button_zoom(wy_delta) {
+      var wy_rect = wy_stage.getBoundingClientRect();
+      wy_zoom_at(wy_scale + wy_delta, wy_rect.left + wy_rect.width / 2, wy_rect.top + wy_rect.height / 2, true);
+    }
+    document.getElementById('wy_zoom_in').addEventListener('click', function () { wy_button_zoom(.5); });
+    document.getElementById('wy_zoom_out').addEventListener('click', function () { wy_button_zoom(-.5); });
+    document.getElementById('wy_reset').addEventListener('click', function () {
+      wy_scale = 1;
+      wy_tx = wy_ty = 0;
+      wy_apply(true);
+      wy_status('已复位 · 1x 自动居中');
+    });
+
+    function wy_resize() {
+      var wy_rect = wy_stage.getBoundingClientRect();
+      if (wy_stage_width && wy_stage_height) {
+        var wy_focus_x = (wy_stage_width / 2 - wy_tx) / (wy_stage_width * wy_scale);
+        var wy_focus_y = (wy_stage_height / 2 - wy_ty) / (wy_stage_height * wy_scale);
+        wy_tx = wy_rect.width / 2 - wy_focus_x * wy_rect.width * wy_scale;
+        wy_ty = wy_rect.height / 2 - wy_focus_y * wy_rect.height * wy_scale;
+      }
+      wy_stage_width = wy_rect.width;
+      wy_stage_height = wy_rect.height;
+      wy_apply(false);
+    }
+    window.addEventListener('resize', function () {
+      clearTimeout(wy_resize_timer);
+      wy_resize_timer = setTimeout(function () {
+        wy_resize();
+        wy_status('屏幕尺寸已变化 · ' + wy_scale.toFixed(2) + 'x 状态已保留');
+      }, 100);
+    });
+    window.addEventListener('orientationchange', function () { setTimeout(wy_resize, 180); });
+    wy_resize();
+  </script>
+</body>
+</html>

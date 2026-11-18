@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<!--
+  姓名：张曦文
+  学号：未提供
+  使用大模型：Kimi-K3.1-Pro
+  功能：任务四——devicemotion 摇一摇抽取今日菜谱与完整降级
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f5f1e8">
+  <link rel="icon" href="assets/wy-favicon.svg" type="image/svg+xml">
+  <title>任务四｜摇一摇今日菜谱</title>
+  <link rel="stylesheet" href="css/wy-common.css">
+  <style>
+    .wy_sensor_layout { display: grid; grid-template-columns: .9fr 1.1fr; gap: 24px; align-items: stretch; }
+    .wy_sensor_console { position: relative; overflow: hidden; min-height: 520px; padding: 34px; background: var(--wy_ink); color: #fff; }
+    .wy_sensor_console::before { content: ""; position: absolute; top: -150px; right: -150px; width: 360px; height: 360px; border: 1px solid rgba(255,255,255,.1); border-radius: 50%; }
+    .wy_sensor_console::after { content: ""; position: absolute; bottom: -180px; left: -130px; width: 360px; height: 360px; border: 1px solid rgba(255,255,255,.08); border-radius: 50%; }
+    .wy_sensor_content { position: relative; z-index: 2; display: flex; height: 100%; flex-direction: column; align-items: center; text-align: center; }
+    .wy_sensor_label { align-self: flex-start; color: #9db4a8; font-size: 11px; letter-spacing: .16em; }
+    .wy_shake_visual { position: relative; display: grid; place-items: center; width: 230px; height: 230px; margin: 32px auto 25px; }
+    .wy_shake_ring { position: absolute; inset: 0; border: 1px solid rgba(255,255,255,.17); border-radius: 50%; }
+    .wy_shake_ring:nth-child(2) { inset: 24px; border-style: dashed; }
+    .wy_shake_ring:nth-child(3) { inset: 48px; border-color: rgba(237,106,75,.45); }
+    .wy_shake_orb { position: relative; z-index: 2; display: grid; place-items: center; width: 112px; height: 112px; border-radius: 35px; background: var(--wy_coral); box-shadow: 0 20px 50px rgba(0,0,0,.2); transform: rotate(-8deg); }
+    .wy_phone_icon { width: 40px; height: 67px; border: 3px solid #fff; border-radius: 9px; }
+    .wy_phone_icon::before { content: ""; display: block; width: 14px; height: 3px; margin: 6px auto 0; border-radius: 3px; background: #fff; }
+    .wy_phone_icon::after { content: ""; display: block; width: 5px; height: 5px; margin: 39px auto 0; border-radius: 50%; background: #fff; }
+    .wy_sensor_connected .wy_shake_orb { animation: wy_breathe 2.5s ease-in-out infinite; }
+    .wy_sensor_console.wy_shaking .wy_shake_visual { animation: wy_shake .45s ease; }
+    @keyframes wy_breathe { 0%,100% { transform: rotate(-8deg) scale(1); } 50% { transform: rotate(5deg) scale(1.06); } }
+    @keyframes wy_shake { 0%,100% { transform: translateX(0) rotate(0); } 20% { transform: translateX(-12px) rotate(-5deg); } 40% { transform: translateX(12px) rotate(5deg); } 60% { transform: translateX(-9px) rotate(-3deg); } 80% { transform: translateX(8px) rotate(3deg); } }
+    .wy_sensor_value { font: 36px Georgia,serif; }
+    .wy_sensor_value small { color: #9db4a8; font: 11px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    .wy_meter { width: min(250px,90%); height: 5px; margin: 12px auto 18px; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.12); }
+    .wy_meter_fill { width: 0; height: 100%; border-radius: inherit; background: var(--wy_coral); transition: width .12s linear; }
+    .wy_sensor_help { min-height: 48px; margin: 0; color: #b6c7be; font-size: 13px; }
+    .wy_sensor_console .wy_badge { margin-top: 15px; background: rgba(255,255,255,.1); color: #d5e0da; }
+    .wy_permission { margin-top: 16px; border-color: var(--wy_coral); background: var(--wy_coral); }
+    .wy_result_panel { display: flex; flex-direction: column; padding: 34px; }
+    .wy_result_head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    .wy_result_head h2 { margin: 0; color: var(--wy_ink); font-family: "Songti SC",serif; font-size: 26px; }
+    .wy_result_head span { color: var(--wy_muted); font-size: 11px; }
+    .wy_result_empty { display: grid; flex: 1; min-height: 340px; place-items: center; text-align: center; }
+    .wy_empty_art { position: relative; width: 150px; height: 150px; margin: 0 auto 20px; border: 1px dashed #b8b9aa; border-radius: 50%; }
+    .wy_empty_art::before { content: ""; position: absolute; top: 50%; left: 24px; width: 100px; height: 48px; border: 2px solid #8a9b90; border-top: 0; border-radius: 0 0 60px 60px; transform: translateY(-35%); }
+    .wy_empty_art::after { content: ""; position: absolute; top: 32px; left: 50%; width: 2px; height: 38px; background: #8a9b90; box-shadow: -18px 6px 0 #8a9b90,18px 6px 0 #8a9b90; }
+    .wy_result_empty h3 { margin: 0 0 8px; color: var(--wy_ink); font-family: "Songti SC",serif; font-size: 23px; }
+    .wy_result_empty p { max-width: 280px; margin: 0; color: var(--wy_muted); font-size: 13px; }
+    .wy_result_card { display: none; flex: 1; padding-top: 24px; }
+    .wy_result_card.wy_visible { display: block; }
+    .wy_result_card.wy_pop { animation: wy_pop .45s cubic-bezier(.2,.8,.2,1); }
+    @keyframes wy_pop { 0% { opacity: 0; transform: translateY(20px) scale(.96); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
+    .wy_result_photo { position: relative; height: 250px; overflow: hidden; border-radius: 18px; }
+    .wy_result_photo img { width: 100%; height: 100%; object-fit: cover; }
+    .wy_result_photo span { position: absolute; right: 14px; bottom: 14px; padding: 6px 10px; border-radius: 99px; background: rgba(20,45,36,.75); color: #fff; font-size: 10px; }
+    .wy_result_name { margin: 20px 0 4px; color: var(--wy_ink); font-family: "Songti SC",serif; font-size: 32px; }
+    .wy_result_en { margin: 0 0 12px; color: var(--wy_coral); font: italic 13px Georgia,serif; }
+    .wy_result_desc { margin: 0; color: var(--wy_muted); font-size: 13px; }
+    .wy_manual_area { margin-top: 22px; text-align: center; }
+    .wy_manual_area .wy_btn { width: 100%; }
+    .wy_manual_note { margin: 10px 0 0; color: var(--wy_muted); font-size: 11px; }
+    .wy_sensor_notes { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-top: 25px; }
+    .wy_sensor_note { padding: 22px; }
+    .wy_sensor_note h3 { margin: 0 0 10px; color: var(--wy_ink); font-size: 16px; }
+    .wy_sensor_note p { margin: 0; color: var(--wy_muted); font-size: 13px; }
+    @media (max-width: 850px) { .wy_sensor_layout { grid-template-columns: 1fr; } .wy_sensor_console { min-height: 470px; } .wy_sensor_notes { grid-template-columns: 1fr; } }
+    @media (max-width: 480px) { .wy_sensor_console, .wy_result_panel { padding: 24px; } .wy_sensor_console { min-height: 450px; } .wy_shake_visual { width: 200px; height: 200px; margin-top: 28px; } .wy_shake_orb { width: 98px; height: 98px; } .wy_result_head h2 { font-size: 23px; } .wy_result_photo { height: 220px; } }
+  </style>
+</head>
+<body>
+  <header class="wy_header"><nav class="wy_shell wy_nav" aria-label="页面导航"><a class="wy_brand" href="index.html"><span class="wy_brand_mark">W</span>指尖实验室</a><a class="wy_back" href="index.html#wy_tasks">返回四关任务</a></nav></header>
+  <main class="wy_main"><div class="wy_shell">
+    <div class="wy_task_head"><div><p class="wy_eyebrow">Task 04 · Device Motion & Fallback</p><h1 class="wy_title">摇一摇，<br>今天吃点好的。</h1><p class="wy_lead">拿起手机轻轻摇动，合成加速度超过 18 时抽取一道菜，随后进入 1.5 秒冷却。电脑和无传感器设备可直接点击按钮。</p></div><div class="wy_level"><span>★★★★</span> 设备能力 · 权限 · 排错</div></div>
+
+    <div class="wy_sensor_layout">
+      <section class="wy_card wy_sensor_console" id="wy_sensor_console" aria-label="加速度传感器状态">
+        <div class="wy_sensor_content"><span class="wy_sensor_label">DEVICE MOTION / LIVE</span><div class="wy_shake_visual"><span class="wy_shake_ring"></span><span class="wy_shake_ring"></span><span class="wy_shake_ring"></span><div class="wy_shake_orb"><span class="wy_phone_icon"></span></div></div><div class="wy_sensor_value"><span id="wy_motion_value">0.0</span> <small>m/s²</small></div><div class="wy_meter" aria-hidden="true"><div class="wy_meter_fill" id="wy_meter_fill"></div></div><p class="wy_sensor_help" id="wy_sensor_help">正在检测设备的运动传感器……</p><span class="wy_badge" id="wy_sensor_state">检测中</span><button class="wy_btn wy_permission" id="wy_permission" type="button" hidden>允许使用运动传感器</button></div>
+      </section>
+
+      <section class="wy_card wy_result_panel" aria-labelledby="wy_result_title">
+        <div class="wy_result_head"><h2 id="wy_result_title">今日风味签</h2><span>随机菜谱 · 本地图片</span></div>
+        <div class="wy_result_empty" id="wy_result_empty"><div><div class="wy_empty_art"></div><h3>未知的美味，等你揭晓</h3><p>摇一摇手机，或点击下方“点我抽一次”，抽取今天的专属菜谱。</p></div></div>
+        <article class="wy_result_card" id="wy_result_card" aria-live="polite"><div class="wy_result_photo"><img id="wy_result_image" src="assets/wy-duck-photo.jpg" alt="" width="1536" height="1024"><span id="wy_result_location">北京</span></div><h3 class="wy_result_name" id="wy_result_name"></h3><p class="wy_result_en" id="wy_result_en"></p><p class="wy_result_desc" id="wy_result_desc"></p></article>
+        <div class="wy_manual_area"><button class="wy_btn wy_btn_coral" id="wy_manual_draw" type="button">点我抽一次</button><p class="wy_manual_note" id="wy_cooldown_note">传感器阈值 18 · 摇动后 1.5 秒内不会重复触发</p></div>
+      </section>
+    </div>
+
+    <section class="wy_sensor_notes" aria-label="传感器答辩说明">
+      <article class="wy_card wy_sensor_note"><h3>两种加速度有什么区别？</h3><p><span class="wy_code">accelerationIncludingGravity</span> 包含重力，静止时合成值约为 9.8m/s²；<span class="wy_code">acceleration</span> 是尽量去除重力后的线性加速度。本页按任务要求使用前者。</p></article>
+      <article class="wy_card wy_sensor_note"><h3>为什么一次摇动只抽一次？</h3><p>超过 18 才触发，并立即记录时间、进入 1.5 秒冷却。冷却期间即使持续收到高加速度数据也不再抽取，避免一次摇动弹出十几次。</p></article>
+      <article class="wy_card wy_sensor_note"><h3>为什么必须做降级？</h3><p>桌面通常没有运动传感器，iOS 还需用户主动授权，浏览器也可能拒绝或收不到数据。明确提示并保留点击抽取，才能避免空白与报错，让每位用户都可完成体验。</p></article>
+    </section>
+    <div class="wy_note wy_section"><strong>真机提示：</strong>运动传感器通常要求 HTTPS 安全上下文。iPhone / iPad 上请先点击“允许使用运动传感器”；若选择拒绝，仍可点击右侧按钮抽取，页面不会白屏。</div>
+  </div></main>
+  <footer class="wy_footer"><div class="wy_shell wy_footer_inner"><a class="wy_back" href="mobile-zoom.html">← 上一关：图片查看器</a><a class="wy_back" href="index.html">完成四关 · 返回首页</a></div></footer>
+
+  <script>
+    var wy_recipes = [
+      { name: '北京烤鸭', en: 'Peking Roast Duck', location: '北京', image: 'assets/wy-duck-photo.jpg', desc: '酥香鸭皮、细嫩鸭肉，配上饼与甜面酱。今天适合认真吃一顿经典好菜。' },
+      { name: '麻婆豆腐', en: 'Mapo Tofu', location: '四川', image: 'assets/wy-tofu-photo.jpg', desc: '麻辣鲜香、豆腐软嫩，用一份热腾腾的川味唤醒今天的食欲。' },
+      { name: '西湖醋鱼', en: 'West Lake Vinegar Fish', location: '杭州', image: 'assets/wy-fish-photo.jpg', desc: '酸甜芡汁衬出鱼肉鲜嫩，让清雅的江南风味成为今日的小确幸。' },
+      { name: '兰州牛肉面', en: 'Lanzhou Beef Noodles', location: '兰州', image: 'assets/wy-noodles-photo.jpg', desc: '汤清、萝卜白、辣油红、面条黄。一碗热面，就是朴实又满足的答案。' }
+    ];
+    var wy_console = document.getElementById('wy_sensor_console');
+    var wy_sensor_help = document.getElementById('wy_sensor_help');
+    var wy_sensor_state = document.getElementById('wy_sensor_state');
+    var wy_permission = document.getElementById('wy_permission');
+    var wy_motion_timeout = null;
+    var wy_motion_bound = false;
+    var wy_received_data = false;
+    var wy_cooling = false;
+    var wy_last_shake = 0;
+    var wy_last_result = -1;
+    var wy_draw_count = 0;
+    var wy_is_ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+
+    function wy_set_sensor(wy_text, wy_state, wy_connected) {
+      wy_sensor_help.textContent = wy_text;
+      wy_sensor_state.textContent = wy_state;
+      wy_console.classList.toggle('wy_sensor_connected', Boolean(wy_connected));
+    }
+
+    function wy_draw(wy_source) {
+      var wy_index = Math.floor(Math.random() * wy_recipes.length);
+      if (wy_recipes.length > 1) {
+        while (wy_index === wy_last_result) wy_index = Math.floor(Math.random() * wy_recipes.length);
+      }
+      wy_last_result = wy_index;
+      wy_draw_count += 1;
+      var wy_recipe = wy_recipes[wy_index];
+      var wy_card = document.getElementById('wy_result_card');
+      document.getElementById('wy_result_empty').style.display = 'none';
+      document.getElementById('wy_result_image').src = wy_recipe.image;
+      document.getElementById('wy_result_image').alt = wy_recipe.name + '今日菜谱图片';
+      document.getElementById('wy_result_location').textContent = wy_recipe.location;
+      document.getElementById('wy_result_name').textContent = wy_recipe.name;
+      document.getElementById('wy_result_en').textContent = wy_recipe.en;
+      document.getElementById('wy_result_desc').textContent = wy_recipe.desc;
+      wy_card.classList.add('wy_visible');
+      wy_card.classList.remove('wy_pop');
+      void wy_card.offsetWidth;
+      wy_card.classList.add('wy_pop');
+      document.getElementById('wy_cooldown_note').textContent = '第 ' + wy_draw_count + ' 次抽取 · ' + wy_source + ' · 今日推荐：' + wy_recipe.name;
+    }
+
+    function wy_shake_animation() {
+      wy_console.classList.remove('wy_shaking');
+      void wy_console.offsetWidth;
+      wy_console.classList.add('wy_shaking');
+      setTimeout(function () { wy_console.classList.remove('wy_shaking'); }, 480);
+    }
+
+    function wy_on_motion(wy_event) {
+      var wy_acc = wy_event.accelerationIncludingGravity;
+      if (!wy_acc) return;
+      var wy_x = Number(wy_acc.x);
+      var wy_y = Number(wy_acc.y);
+      var wy_z = Number(wy_acc.z);
+      if (!Number.isFinite(wy_x) || !Number.isFinite(wy_y) || !Number.isFinite(wy_z)) return;
+      var wy_magnitude = Math.sqrt(wy_x * wy_x + wy_y * wy_y + wy_z * wy_z);
+      // 部分桌面浏览器会派发全零事件，这不代表设备真的具有加速度传感器。
+      if (wy_magnitude < .01) return;
+      if (!wy_received_data) {
+        wy_received_data = true;
+        clearTimeout(wy_motion_timeout);
+        wy_set_sensor('传感器已连接，摇一摇手机抽取今日菜谱。', '等待摇动', true);
+      }
+      document.getElementById('wy_motion_value').textContent = wy_magnitude.toFixed(1);
+      document.getElementById('wy_meter_fill').style.width = Math.min(100, wy_magnitude / 24 * 100) + '%';
+      var wy_now = Date.now();
+      if (wy_magnitude > 18 && !wy_cooling && wy_now - wy_last_shake >= 1500) {
+        wy_cooling = true;
+        wy_last_shake = wy_now;
+        wy_sensor_state.textContent = '冷却 1.5 秒';
+        wy_sensor_help.textContent = '识别到一次摇动，已抽取一道菜；冷却期间不会重复触发。';
+        wy_shake_animation();
+        wy_draw('摇一摇触发');
+        setTimeout(function () {
+          wy_cooling = false;
+          wy_sensor_state.textContent = '等待摇动';
+          wy_sensor_help.textContent = '冷却结束，可以再次摇一摇。';
+        }, 1500);
+      }
+    }
+
+    function wy_watch_no_data() {
+      clearTimeout(wy_motion_timeout);
+      wy_motion_timeout = setTimeout(function () {
+        if (!wy_received_data) wy_set_sensor('当前设备不支持，请用手机打开；也可以直接使用“点我抽一次”。', '无传感器数据 · 已降级', false);
+      }, 3000);
+    }
+
+    function wy_bind_motion() {
+      if (wy_motion_bound) return;
+      wy_motion_bound = true;
+      window.addEventListener('devicemotion', wy_on_motion, { passive: true });
+      wy_set_sensor('正在等待传感器数据；若没有反应，请使用“点我抽一次”。', '监听中', false);
+      wy_watch_no_data();
+    }
+
+    function wy_init_sensor() {
+      if (!('DeviceMotionEvent' in window)) {
+        wy_set_sensor('当前设备不支持，请用手机打开；也可以直接使用“点我抽一次”。', '设备不支持 · 已降级', false);
+        return;
+      }
+      if (wy_is_ios && typeof window.DeviceMotionEvent.requestPermission === 'function') {
+        wy_permission.hidden = false;
+        wy_set_sensor('iOS 需要你的授权。请点击下方按钮，再摇动手机。', '等待 iOS 权限', false);
+      } else wy_bind_motion();
+    }
+
+    wy_permission.addEventListener('click', function () {
+      window.DeviceMotionEvent.requestPermission().then(function (wy_result) {
+        if (wy_result === 'granted') {
+          wy_permission.hidden = true;
+          wy_bind_motion();
+        } else {
+          wy_set_sensor('未获得运动传感器权限。你仍可点击“点我抽一次”体验完整功能。', '权限未开启 · 已降级', false);
+        }
+      }).catch(function (wy_error) {
+        wy_set_sensor('权限申请未完成，请检查 HTTPS 与浏览器设置；也可以点击“点我抽一次”。', '无法申请权限 · 已降级', false);
+      });
+    });
+    document.getElementById('wy_manual_draw').addEventListener('click', function () {
+      wy_draw('手动抽取');
+      wy_shake_animation();
+    });
+    wy_init_sensor();
+  </script>
+</body>
+</html>

@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<!--
+  姓名：张曦文
+  学号：未提供
+  使用大模型：Kimi-K3.1-Pro
+  功能：任务一——观察五种触摸操作的事件顺序并绘制真实轨迹
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f5f1e8">
+  <link rel="icon" href="assets/wy-favicon.svg" type="image/svg+xml">
+  <title>任务一｜事件侦探</title>
+  <link rel="stylesheet" href="css/wy-common.css">
+  <style>
+    .wy_probe_layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(310px, .9fr); gap: 22px; }
+    .wy_probe_card { overflow: hidden; }
+    .wy_probe_top { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 20px 22px; }
+    .wy_probe_top h2 { margin: 0; color: var(--wy_ink); font-size: 17px; }
+    .wy_probe { position: relative; height: 390px; overflow: hidden; background: #142e27; color: #fff; cursor: crosshair; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+    .wy_probe::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px); background-size: 32px 32px; }
+    .wy_probe::after { content: ""; position: absolute; top: 50%; left: 50%; width: 190px; height: 190px; border: 1px solid rgba(255,255,255,.11); border-radius: 50%; transform: translate(-50%,-50%); pointer-events: none; }
+    .wy_trace { position: absolute; z-index: 2; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+    .wy_probe_hint { position: absolute; z-index: 3; top: 50%; left: 50%; width: 80%; transform: translate(-50%,-50%); text-align: center; pointer-events: none; transition: opacity .2s; }
+    .wy_probe_hint strong { display: block; font-family: "Songti SC", serif; font-size: 26px; font-weight: 500; }
+    .wy_probe_hint span { display: block; margin-top: 9px; color: #a9bdb3; font-size: 12px; }
+    .wy_probe_active .wy_probe_hint { opacity: .18; }
+    .wy_probe_coords { position: absolute; z-index: 3; right: 18px; bottom: 15px; color: #a9bdb3; font: 11px Consolas, monospace; pointer-events: none; }
+    .wy_probe_live { position: absolute; z-index: 3; top: 16px; left: 17px; display: flex; align-items: center; gap: 7px; color: #c4d2cb; font-size: 11px; pointer-events: none; }
+    .wy_probe_live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #789387; }
+    .wy_probe_active .wy_probe_live::before { background: var(--wy_coral); box-shadow: 0 0 0 5px rgba(237,106,75,.14); }
+    .wy_gesture_choices { display: flex; flex-wrap: wrap; gap: 7px; padding: 17px 20px; }
+    .wy_choice { min-height: 36px; padding: 7px 12px; border: 1px solid var(--wy_line); border-radius: 99px; background: transparent; color: var(--wy_muted); cursor: pointer; font-size: 12px; }
+    .wy_choice[aria-pressed="true"] { border-color: var(--wy_ink); background: var(--wy_ink); color: #fff; }
+    .wy_probe_footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 20px 18px; }
+    .wy_probe_footer span { color: var(--wy_muted); font-size: 12px; }
+    .wy_text_btn { padding: 5px 0; border: 0; background: transparent; color: var(--wy_coral); cursor: pointer; font-size: 12px; font-weight: 700; }
+    .wy_log_card { display: flex; min-height: 500px; flex-direction: column; overflow: hidden; background: #1d352e; color: #fff; }
+    .wy_log_head { display: flex; align-items: center; justify-content: space-between; padding: 20px 22px 16px; border-bottom: 1px solid rgba(255,255,255,.1); }
+    .wy_log_head h2 { margin: 0; font-size: 16px; }
+    .wy_log_head span { color: #9eb4a9; font: 11px Consolas, monospace; }
+    .wy_log { overflow: auto; flex: 1; max-height: 365px; margin: 0; padding: 10px 0; list-style: none; scrollbar-color: #567166 transparent; }
+    .wy_log_empty { padding: 36px 24px; color: #8ca398; font-size: 13px; text-align: center; }
+    .wy_log_item { display: grid; grid-template-columns: 58px 100px 1fr; gap: 8px; padding: 8px 18px; border-bottom: 1px solid rgba(255,255,255,.055); font: 11px/1.5 Consolas, monospace; }
+    .wy_log_time { color: #728f81; }
+    .wy_log_name { color: #f2a58f; }
+    .wy_log_detail { overflow-wrap: anywhere; color: #b7c9c0; }
+    .wy_log_item[data-wy-kind="move"] .wy_log_name { color: #e4c170; }
+    .wy_log_item[data-wy-kind="custom"] .wy_log_name { color: #9bd5b4; }
+    .wy_counts { display: grid; grid-template-columns: repeat(4,1fr); border-top: 1px solid rgba(255,255,255,.1); }
+    .wy_count { padding: 13px 6px; border-right: 1px solid rgba(255,255,255,.1); text-align: center; }
+    .wy_count:last-child { border-right: 0; }
+    .wy_count strong { display: block; font: 20px Georgia, serif; }
+    .wy_count span { color: #91aa9e; font-size: 9px; }
+    .wy_history_card { margin-top: 24px; overflow: hidden; }
+    .wy_history_head { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 22px 24px 16px; }
+    .wy_history_head h2 { margin: 0; color: var(--wy_ink); font-size: 18px; }
+    .wy_history_head span { color: var(--wy_muted); font-size: 12px; }
+    .wy_history_card .wy_table_wrap { border: 0; border-radius: 0; }
+    .wy_history_card .wy_table { min-width: 690px; }
+    .wy_history_card .wy_table td:nth-child(3) { min-width: 260px; font-family: Consolas, monospace; font-size: 11px; }
+    .wy_answers { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-top: 25px; }
+    .wy_answer { padding: 22px; }
+    .wy_answer_no { color: var(--wy_coral); font: 12px Georgia, serif; }
+    .wy_answer h3 { margin: 10px 0; color: var(--wy_ink); font-size: 16px; line-height: 1.5; }
+    .wy_answer p { margin: 0; color: var(--wy_muted); font-size: 13px; }
+    @media (max-width: 900px) { .wy_probe_layout { grid-template-columns: 1fr; } .wy_log { max-height: 270px; } .wy_log_card { min-height: 390px; } .wy_answers { grid-template-columns: 1fr; } }
+    @media (max-width: 520px) { .wy_probe { height: 340px; } .wy_probe_hint strong { font-size: 23px; } .wy_log_item { grid-template-columns: 48px 88px 1fr; padding: 8px 12px; font-size: 10px; } .wy_probe_top { padding: 17px; } .wy_gesture_choices { padding: 15px; } .wy_probe_footer { padding: 0 15px 15px; } .wy_choice { padding: 6px 10px; } }
+  </style>
+</head>
+<body>
+  <header class="wy_header"><nav class="wy_shell wy_nav" aria-label="页面导航"><a class="wy_brand" href="index.html"><span class="wy_brand_mark">W</span>指尖实验室</a><a class="wy_back" href="index.html#wy_tasks">返回四关任务</a></nav></header>
+  <main class="wy_main">
+    <div class="wy_shell">
+      <div class="wy_task_head">
+        <div><p class="wy_eyebrow">Task 01 · Observe & Record</p><h1 class="wy_title">一次触摸，<br>究竟发生了什么？</h1><p class="wy_lead">先选择要观察的操作，再在深色区域完成它。日志保留真实事件顺序，下方自动汇总每一次手势；电脑端可用鼠标替代单指操作。</p></div>
+        <div class="wy_level"><span>★</span> 观察 · 记录 · 轨迹</div>
+      </div>
+
+      <div class="wy_probe_layout">
+        <section class="wy_card wy_probe_card" aria-labelledby="wy_probe_title">
+          <div class="wy_probe_top"><h2 id="wy_probe_title">事件探针</h2><span class="wy_badge wy_badge_coral" id="wy_mode">等待操作</span></div>
+          <div class="wy_probe" id="wy_probe" role="application" aria-label="触摸事件测试区，请按下、拖动或长按">
+            <canvas class="wy_trace" id="wy_trace" aria-hidden="true"></canvas>
+            <span class="wy_probe_live" id="wy_live">探针待机</span>
+            <div class="wy_probe_hint"><strong>用手指按下并拖动</strong><span>支持单击 / 上拖 / 左快滑 / 双指 / 长按</span></div>
+            <span class="wy_probe_coords" id="wy_coords">x: — &nbsp; y: —</span>
+          </div>
+          <div class="wy_gesture_choices" aria-label="选择本次要记录的操作">
+            <button class="wy_choice" type="button" data-wy-gesture="单击" aria-pressed="true">单击</button>
+            <button class="wy_choice" type="button" data-wy-gesture="向上拖动" aria-pressed="false">向上拖动</button>
+            <button class="wy_choice" type="button" data-wy-gesture="向左快速滑" aria-pressed="false">向左快速滑</button>
+            <button class="wy_choice" type="button" data-wy-gesture="双指触摸" aria-pressed="false">双指触摸</button>
+            <button class="wy_choice" type="button" data-wy-gesture="长按后抬起" aria-pressed="false">长按后抬起</button>
+          </div>
+          <div class="wy_probe_footer"><span id="wy_probe_status">当前记录：单击。请在上方区域轻点一次。</span><button class="wy_text_btn" id="wy_clear" type="button">清空全部</button></div>
+        </section>
+
+        <section class="wy_card wy_log_card" aria-labelledby="wy_log_title">
+          <div class="wy_log_head"><h2 id="wy_log_title">实时事件流</h2><span id="wy_sequence_count">0 EVENTS</span></div>
+          <ol class="wy_log" id="wy_log" aria-live="polite"><li class="wy_log_empty" id="wy_log_empty">等待你的第一次触摸……</li></ol>
+          <div class="wy_counts" aria-label="当前手势事件计数"><div class="wy_count"><strong id="wy_start_count">0</strong><span>START</span></div><div class="wy_count"><strong id="wy_move_count">0</strong><span>MOVE</span></div><div class="wy_count"><strong id="wy_end_count">0</strong><span>END</span></div><div class="wy_count"><strong id="wy_click_count">0</strong><span>CLICK</span></div></div>
+        </section>
+      </div>
+
+      <section class="wy_card wy_history_card" aria-labelledby="wy_history_title">
+        <div class="wy_history_head"><h2 id="wy_history_title">五种操作记录表</h2><span>每次抬手后自动写入 · 横向滑动可查看完整表格</span></div>
+        <div class="wy_table_wrap"><table class="wy_table"><thead><tr><th>目标操作</th><th>识别结果</th><th>事件触发顺序</th><th>move 次数</th><th>位移 / 用时</th></tr></thead><tbody id="wy_history"><tr id="wy_history_empty"><td colspan="5">暂无记录。依次选择五种操作并完成触摸，记录会出现在这里。</td></tr></tbody></table></div>
+      </section>
+
+      <section class="wy_answers" aria-label="任务一验收答案">
+        <article class="wy_card wy_answer"><span class="wy_answer_no">QUESTION 01</span><h3>一次拖动里 touchmove 大约触发多少次？</h3><p>次数不固定：本页会实时计数。通常距离越长、拖动越慢，浏览器采样到的 move 越多；同时也受设备刷新率与事件合并影响，并非每移动 1px 必触发一次。</p></article>
+        <article class="wy_card wy_answer"><span class="wy_answer_no">QUESTION 02</span><h3>click 在 touchend 之前还是之后？</h3><p>对于可识别为点击的触摸，顺序是 touchstart → touchend → click。发生明显拖动、系统取消或阻止默认点击行为时，最后的 click 可能不会出现。</p></article>
+        <article class="wy_card wy_answer"><span class="wy_answer_no">QUESTION 03</span><h3>把 touchend 换成 touchcancel 会怎样？</h3><p>正常抬手不再执行收尾逻辑；touchcancel 只在来电、系统手势等中断时触发。因此二者不能互换，必须分别监听，并在 cancel 中清理计时器和手势状态。</p></article>
+      </section>
+
+      <section class="wy_card wy_panel wy_section"><h2 class="wy_section_title">轨迹与日志说明</h2><div class="wy_text"><p>Canvas 中珊瑚色圆点是起点，连线是第一根手指经过的实际位置；日志中的坐标使用相对视口的 <span class="wy_code">clientX / clientY</span>。双指操作时还会显示当前触点数量。</p><p><strong>为什么抬手读取 changedTouches？</strong> 因为 touchend 时抬起的触点已从 touches 删除，changedTouches 才保存它的终点坐标。本页同时监听 touchcancel，避免系统中断后计时器与状态残留。</p></div></section>
+    </div>
+  </main>
+  <footer class="wy_footer"><div class="wy_shell wy_footer_inner"><span>任务一 / 事件侦探</span><a class="wy_back" href="mobile-gesture.html">下一关：手势卡片 →</a></div></footer>
+
+  <script>
+    // 所有业务变量统一使用 wy_ 前缀。
+    var wy_probe = document.getElementById('wy_probe');
+    var wy_canvas = document.getElementById('wy_trace');
+    var wy_ctx = wy_canvas.getContext('2d');
+    var wy_log = document.getElementById('wy_log');
+    var wy_history = document.getElementById('wy_history');
+    var wy_mode = document.getElementById('wy_mode');
+    var wy_live = document.getElementById('wy_live');
+    var wy_coords = document.getElementById('wy_coords');
+    var wy_status = document.getElementById('wy_probe_status');
+    var wy_expected = '单击';
+    var wy_active = false;
+    var wy_mouse_down = false;
+    var wy_start_time = 0;
+    var wy_start_x = 0;
+    var wy_start_y = 0;
+    var wy_last_x = 0;
+    var wy_last_y = 0;
+    var wy_end_x = 0;
+    var wy_end_y = 0;
+    var wy_moves = 0;
+    var wy_starts = 0;
+    var wy_ends = 0;
+    var wy_clicks = 0;
+    var wy_max_touches = 0;
+    var wy_sequence = [];
+    var wy_long_timer = null;
+    var wy_finish_timer = null;
+    var wy_long_pressed = false;
+    var wy_cancelled = false;
+    var wy_ignore_mouse_until = 0;
+    var wy_dpr = 1;
+
+    function wy_resize_canvas() {
+      var wy_rect = wy_probe.getBoundingClientRect();
+      wy_dpr = Math.min(window.devicePixelRatio || 1, 2);
+      wy_canvas.width = Math.round(wy_rect.width * wy_dpr);
+      wy_canvas.height = Math.round(wy_rect.height * wy_dpr);
+      wy_ctx.setTransform(wy_dpr, 0, 0, wy_dpr, 0, 0);
+      wy_ctx.lineCap = 'round';
+      wy_ctx.lineJoin = 'round';
+    }
+
+    function wy_point(wy_event) {
+      var wy_rect = wy_probe.getBoundingClientRect();
+      return { x: wy_event.clientX - wy_rect.left, y: wy_event.clientY - wy_rect.top };
+    }
+
+    function wy_draw_dot(wy_x, wy_y, wy_color, wy_radius) {
+      wy_ctx.beginPath();
+      wy_ctx.arc(wy_x, wy_y, wy_radius || 5, 0, Math.PI * 2);
+      wy_ctx.fillStyle = wy_color || '#ed6a4b';
+      wy_ctx.fill();
+    }
+
+    function wy_draw_line(wy_x, wy_y) {
+      wy_ctx.beginPath();
+      wy_ctx.moveTo(wy_last_x, wy_last_y);
+      wy_ctx.lineTo(wy_x, wy_y);
+      wy_ctx.strokeStyle = '#ed6a4b';
+      wy_ctx.lineWidth = 3;
+      wy_ctx.stroke();
+      wy_draw_dot(wy_x, wy_y, '#f6b29e', 2.5);
+    }
+
+    function wy_update_counts() {
+      document.getElementById('wy_start_count').textContent = wy_starts;
+      document.getElementById('wy_move_count').textContent = wy_moves;
+      document.getElementById('wy_end_count').textContent = wy_ends;
+      document.getElementById('wy_click_count').textContent = wy_clicks;
+      document.getElementById('wy_sequence_count').textContent = wy_sequence.length + ' EVENTS';
+    }
+
+    function wy_add_log(wy_name, wy_detail, wy_kind) {
+      var wy_empty = document.getElementById('wy_log_empty');
+      if (wy_empty) wy_empty.remove();
+      var wy_item = document.createElement('li');
+      var wy_time = document.createElement('span');
+      var wy_label = document.createElement('span');
+      var wy_info = document.createElement('span');
+      var wy_now = new Date();
+      wy_item.className = 'wy_log_item';
+      if (wy_kind) wy_item.setAttribute('data-wy-kind', wy_kind);
+      wy_time.className = 'wy_log_time';
+      wy_label.className = 'wy_log_name';
+      wy_info.className = 'wy_log_detail';
+      wy_time.textContent = String(wy_now.getMinutes()).padStart(2, '0') + ':' + String(wy_now.getSeconds()).padStart(2, '0') + '.' + String(wy_now.getMilliseconds()).padStart(3, '0');
+      wy_label.textContent = wy_name;
+      wy_info.textContent = wy_detail;
+      wy_sequence.push(wy_name);
+      wy_item.append(wy_time, wy_label, wy_info);
+      wy_log.appendChild(wy_item);
+      wy_log.scrollTop = wy_log.scrollHeight;
+      wy_update_counts();
+    }
+
+    function wy_begin(wy_touch, wy_is_mouse) {
+      if (wy_active && wy_ends > 0) wy_finish();
+      clearTimeout(wy_finish_timer);
+      clearTimeout(wy_long_timer);
+      wy_ctx.clearRect(0, 0, wy_canvas.width / wy_dpr, wy_canvas.height / wy_dpr);
+      wy_active = true;
+      wy_mouse_down = wy_is_mouse;
+      wy_start_time = performance.now();
+      wy_moves = 0;
+      wy_starts = 0;
+      wy_ends = 0;
+      wy_clicks = 0;
+      wy_sequence = [];
+      wy_log.innerHTML = '';
+      wy_max_touches = 1;
+      wy_long_pressed = false;
+      wy_cancelled = false;
+      wy_start_x = wy_touch.x;
+      wy_start_y = wy_touch.y;
+      wy_last_x = wy_touch.x;
+      wy_last_y = wy_touch.y;
+      wy_end_x = wy_touch.x;
+      wy_end_y = wy_touch.y;
+      wy_probe.classList.add('wy_probe_active');
+      wy_mode.textContent = wy_is_mouse ? '鼠标记录中' : '触摸记录中';
+      wy_live.textContent = '正在记录 · ' + wy_expected;
+      wy_draw_dot(wy_touch.x, wy_touch.y, '#ed6a4b', 6);
+      wy_starts += 1;
+      wy_add_log(wy_is_mouse ? 'mousedown' : 'touchstart', 'x:' + Math.round(wy_touch.x) + ' y:' + Math.round(wy_touch.y) + ' touches:1');
+      wy_long_timer = setTimeout(function () {
+        if (!wy_active) return;
+        wy_long_pressed = true;
+        wy_add_log('longpress', '600ms（自定义计时标记）', 'custom');
+        wy_live.textContent = '已识别长按 · 抬起后完成';
+      }, 600);
+    }
+
+    function wy_move(wy_touch, wy_is_mouse, wy_touch_count) {
+      if (!wy_active) return;
+      wy_max_touches = Math.max(wy_max_touches, wy_touch_count || 1);
+      wy_moves += 1;
+      wy_end_x = wy_touch.x;
+      wy_end_y = wy_touch.y;
+      if (Math.hypot(wy_touch.x - wy_start_x, wy_touch.y - wy_start_y) > 10) clearTimeout(wy_long_timer);
+      wy_draw_line(wy_touch.x, wy_touch.y);
+      wy_last_x = wy_touch.x;
+      wy_last_y = wy_touch.y;
+      wy_coords.textContent = 'x: ' + Math.round(wy_touch.x) + '  y: ' + Math.round(wy_touch.y);
+      wy_live.textContent = '触点 ' + wy_max_touches + ' · move ' + wy_moves;
+      wy_add_log(wy_is_mouse ? 'mousemove' : 'touchmove', 'x:' + Math.round(wy_touch.x) + ' y:' + Math.round(wy_touch.y) + ' touches:' + (wy_touch_count || 1), 'move');
+    }
+
+    function wy_end(wy_touch, wy_is_mouse) {
+      if (!wy_active) return;
+      clearTimeout(wy_long_timer);
+      wy_ends += 1;
+      wy_end_x = wy_touch.x;
+      wy_end_y = wy_touch.y;
+      wy_mouse_down = false;
+      wy_add_log(wy_is_mouse ? 'mouseup' : 'touchend', 'x:' + Math.round(wy_touch.x) + ' y:' + Math.round(wy_touch.y) + ' changedTouches:1');
+      wy_draw_dot(wy_end_x, wy_end_y, '#f4c661', 6);
+      wy_probe.classList.remove('wy_probe_active');
+      wy_live.textContent = '手势结束 · 等待 click';
+      wy_mode.textContent = '分析完成';
+      wy_finish_timer = setTimeout(wy_finish, 500);
+    }
+
+    function wy_finish() {
+      if (!wy_active) return;
+      var wy_dx = wy_end_x - wy_start_x;
+      var wy_dy = wy_end_y - wy_start_y;
+      var wy_distance = Math.hypot(wy_dx, wy_dy);
+      var wy_duration = Math.round(performance.now() - wy_start_time);
+      var wy_result = '单击';
+      if (wy_cancelled) wy_result = '系统取消';
+      else if (wy_max_touches > 1) wy_result = '双指触摸';
+      else if (wy_long_pressed) wy_result = '长按后抬起';
+      else if (wy_dy < -30 && Math.abs(wy_dy) > Math.abs(wy_dx)) wy_result = '向上拖动';
+      else if (wy_dx < -30 && Math.abs(wy_dx) > Math.abs(wy_dy) && wy_distance / wy_duration > .2) wy_result = '向左快速滑';
+      else if (wy_distance >= 10) wy_result = '其他拖动';
+      var wy_empty = document.getElementById('wy_history_empty');
+      if (wy_empty) wy_empty.remove();
+      var wy_row = document.createElement('tr');
+      var wy_cells = [wy_expected, wy_result, wy_sequence.join(' → '), String(wy_moves), Math.round(wy_distance) + 'px / ' + wy_duration + 'ms'];
+      wy_cells.forEach(function (wy_value) {
+        var wy_cell = document.createElement('td');
+        wy_cell.textContent = wy_value;
+        wy_row.appendChild(wy_cell);
+      });
+      wy_history.prepend(wy_row);
+      while (wy_history.rows.length > 8) wy_history.deleteRow(-1);
+      wy_active = false;
+      wy_mode.textContent = wy_result;
+      wy_live.textContent = '记录完成 · 可继续下一次';
+      wy_status.textContent = '已记录“' + wy_expected + '”，识别为“' + wy_result + '”，共 ' + wy_sequence.length + ' 条事件。';
+    }
+
+    wy_probe.addEventListener('touchstart', function (wy_event) {
+      wy_ignore_mouse_until = Date.now() + 900;
+      var wy_touch = wy_event.touches[0];
+      if (!wy_active) wy_begin(wy_point(wy_touch), false);
+      if (wy_event.touches.length > 1) {
+        wy_max_touches = Math.max(wy_max_touches, wy_event.touches.length);
+        clearTimeout(wy_long_timer);
+        wy_starts += 1;
+        wy_add_log('touchstart', '新增触点 · touches:' + wy_event.touches.length);
+        wy_live.textContent = '检测到 ' + wy_event.touches.length + ' 根手指';
+      }
+    }, { passive: true });
+
+    wy_probe.addEventListener('touchmove', function (wy_event) {
+      wy_event.preventDefault();
+      if (!wy_event.touches.length) return;
+      wy_move(wy_point(wy_event.touches[0]), false, wy_event.touches.length);
+    }, { passive: false });
+
+    wy_probe.addEventListener('touchend', function (wy_event) {
+      if (!wy_active) return;
+      var wy_touch = wy_event.changedTouches[0];
+      if (!wy_touch) return;
+      if (wy_event.touches.length === 0) wy_end(wy_point(wy_touch), false);
+      else {
+        wy_ends += 1;
+        wy_add_log('touchend', '一根手指抬起 · 剩余 touches:' + wy_event.touches.length);
+      }
+    }, { passive: true });
+
+    wy_probe.addEventListener('touchcancel', function (wy_event) {
+      if (!wy_active) return;
+      clearTimeout(wy_long_timer);
+      wy_cancelled = true;
+      wy_ends += 1;
+      wy_add_log('touchcancel', '系统中断，已清理手势状态');
+      wy_probe.classList.remove('wy_probe_active');
+      wy_finish_timer = setTimeout(wy_finish, 100);
+    }, { passive: true });
+
+    wy_probe.addEventListener('click', function (wy_event) {
+      if (!wy_active) return;
+      var wy_p = wy_point(wy_event);
+      wy_clicks += 1;
+      wy_add_log('click', 'x:' + Math.round(wy_p.x) + ' y:' + Math.round(wy_p.y) + '（最后补发）');
+      wy_live.textContent = '已收到 click · 顺序完整';
+    });
+
+    // 桌面端鼠标降级：仍保留 mousedown / mousemove / mouseup / click 的真实顺序。
+    wy_probe.addEventListener('mousedown', function (wy_event) {
+      if (Date.now() < wy_ignore_mouse_until) return;
+      if (wy_event.sourceCapabilities && wy_event.sourceCapabilities.firesTouchEvents) return;
+      wy_begin(wy_point(wy_event), true);
+    });
+    window.addEventListener('mousemove', function (wy_event) {
+      if (wy_mouse_down) wy_move(wy_point(wy_event), true, 1);
+    });
+    window.addEventListener('mouseup', function (wy_event) {
+      if (wy_mouse_down) wy_end(wy_point(wy_event), true);
+    });
+
+    document.querySelectorAll('.wy_choice').forEach(function (wy_button) {
+      wy_button.addEventListener('click', function () {
+        document.querySelectorAll('.wy_choice').forEach(function (wy_item) { wy_item.setAttribute('aria-pressed', 'false'); });
+        wy_button.setAttribute('aria-pressed', 'true');
+        wy_expected = wy_button.getAttribute('data-wy-gesture');
+        wy_status.textContent = '当前记录：' + wy_expected + '。请在探针区域完成操作。';
+        wy_mode.textContent = '等待' + wy_expected;
+      });
+    });
+
+    document.getElementById('wy_clear').addEventListener('click', function () {
+      clearTimeout(wy_long_timer);
+      clearTimeout(wy_finish_timer);
+      wy_active = false;
+      wy_mouse_down = false;
+      wy_sequence = [];
+      wy_log.innerHTML = '<li class="wy_log_empty" id="wy_log_empty">等待你的第一次触摸……</li>';
+      wy_history.innerHTML = '<tr id="wy_history_empty"><td colspan="5">暂无记录。依次选择五种操作并完成触摸，记录会出现在这里。</td></tr>';
+      wy_starts = wy_moves = wy_ends = wy_clicks = 0;
+      wy_update_counts();
+      wy_ctx.clearRect(0, 0, wy_canvas.width / wy_dpr, wy_canvas.height / wy_dpr);
+      wy_probe.classList.remove('wy_probe_active');
+      wy_coords.textContent = 'x: —  y: —';
+      wy_live.textContent = '探针待机';
+      wy_mode.textContent = '等待操作';
+      wy_status.textContent = '记录已清空。当前选择：' + wy_expected + '。';
+    });
+
+    window.addEventListener('resize', wy_resize_canvas);
+    wy_resize_canvas();
+    wy_update_counts();
+  </script>
+</body>
+</html>
