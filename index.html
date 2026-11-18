@@ -75,6 +75,13 @@
     .wy_shot img { width: 100%; height: 100%; max-height: 510px; object-fit: cover; object-position: top; }
     .wy_shot figcaption { padding: 13px 17px; border-top: 1px solid var(--wy_line); color: var(--wy_muted); font-size: 12px; }
 
+    .wy_videos { padding: 0 0 70px; }
+    .wy_video_grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .wy_video_card { overflow: hidden; margin: 0; border: 1px solid var(--wy_line); border-radius: 20px; background: var(--wy_card); }
+    .wy_video_card video { display: block; width: 100%; aspect-ratio: 9 / 16; object-fit: cover; background: #0d211b; }
+    .wy_video_card figcaption { padding: 13px 17px; border-top: 1px solid var(--wy_line); color: var(--wy_muted); font-size: 12px; }
+    .wy_video_card figcaption strong { display: block; margin-bottom: 2px; color: var(--wy_ink); font-size: 14px; }
+
     @media (hover: hover) {
       .wy_task_card:hover { transform: translateY(-6px); background: #285446; }
       .wy_task_card:nth-child(2):hover, .wy_task_card:nth-child(3):hover { background: #fff8ed; }
@@ -105,6 +112,8 @@
       .wy_notes_intro h2 { font-size: 34px; }
       .wy_shot_grid { grid-template-columns: 1fr; }
       .wy_shot img { max-height: 430px; }
+      .wy_videos { padding: 0 0 52px; }
+      .wy_video_grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -202,6 +211,22 @@
         <div class="wy_shot_grid">
           <figure class="wy_shot"><img src="assets/wy-run-desktop.png" alt="美食手势卡片桌面浏览器实际运行截图" loading="lazy"><figcaption>桌面端 · 1440px 视口 · 卡片与按钮操作</figcaption></figure>
           <figure class="wy_shot"><img src="assets/wy-run-mobile.png" alt="图片查看器手机设备模式实际运行截图" loading="lazy"><figcaption>手机端 · 390×844 视口 · 触摸布局与本地图片</figcaption></figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="wy_videos" aria-labelledby="wy_videos_title">
+      <div class="wy_shell">
+        <div class="wy_section_head" style="color:var(--wy_ink)"><div><p class="wy_eyebrow">Task Videos</p><h2 id="wy_videos_title">真机演示视频</h2></div><p style="color:var(--wy_muted)">手机实机录屏，可直接在页面内播放。</p></div>
+        <div class="wy_video_grid">
+          <figure class="wy_video_card">
+            <video controls playsinline webkit-playsinline preload="metadata" poster="assets/wy-westlake-photo.jpg"><source src="assets/wy-task3-zoom-video.mp4" type="video/mp4">您的浏览器不支持视频播放，请升级后重试。</video>
+            <figcaption><strong>任务三 · 双指图片查看器</strong>手机真机演示：双指缩放、双击切换倍率与单指拖动。</figcaption>
+          </figure>
+          <figure class="wy_video_card">
+            <video controls playsinline webkit-playsinline preload="metadata" poster="assets/wy-duck-photo.jpg"><source src="assets/wy-task4-sensor-video.mp4" type="video/mp4">您的浏览器不支持视频播放，请升级后重试。</video>
+            <figcaption><strong>任务四 · 摇一摇今日菜谱</strong>手机真机演示：摇动抽取菜谱与 1.5 秒冷却效果。</figcaption>
+          </figure>
         </div>
       </div>
     </section>
